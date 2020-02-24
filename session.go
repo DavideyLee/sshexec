@@ -2,15 +2,15 @@ package sshexec
 
 import (
 	"bytes"
-	"io/ioutil"
-	"os"
-	"strconv"
-	"time"
-	"golang.org/x/crypto/ssh"
-	"github.com/pkg/sftp"
-	"io"
 	"errors"
 	"fmt"
+	"github.com/pkg/sftp"
+	"golang.org/x/crypto/ssh"
+	"io"
+	"io/ioutil"
+	"net"
+	"os"
+	"time"
 )
 
 // ssh session
@@ -20,7 +20,6 @@ type HostSession struct {
 	Password string
 	Hostname string
 	Signers  []ssh.Signer
-	Port     int
 	Auths    []ssh.AuthMethod
 }
 
@@ -40,7 +39,7 @@ type ExecResult struct {
 
 // execute the command and return a result structure
 
-func (exec *HostSession) Exec(id int, command string, config ssh.ClientConfig) (*ExecResult) {
+func (exec *HostSession) Exec(id int, command string, config ssh.ClientConfig) *ExecResult {
 
 	result := &ExecResult{
 		Id:        id,
@@ -48,7 +47,7 @@ func (exec *HostSession) Exec(id int, command string, config ssh.ClientConfig) (
 		Command:   command,
 	}
 
-	client, err := ssh.Dial("tcp", exec.Hostname + ":" + strconv.Itoa(exec.Port), &config)
+	client, err := ssh.Dial("tcp", exec.Hostname, &config)
 
 	if err != nil {
 		result.Error = err
@@ -85,7 +84,7 @@ func (exec *HostSession) Exec(id int, command string, config ssh.ClientConfig) (
 
 // execute the command and return a result structure
 
-func (exec *HostSession) Transfer(id int, localFilePath  string, remoteFilePath string, config ssh.ClientConfig) (*ExecResult) {
+func (exec *HostSession) Transfer(id int, localFilePath  string, remoteFilePath string, config ssh.ClientConfig) *ExecResult {
 
 	result := &ExecResult{
 		Id:        id,
@@ -95,7 +94,7 @@ func (exec *HostSession) Transfer(id int, localFilePath  string, remoteFilePath 
 	}
 	start := time.Now()
 	result.StartTime = start
-	client, err := ssh.Dial("tcp", exec.Hostname + ":" + strconv.Itoa(exec.Port), &config)
+	client, err := ssh.Dial("tcp", exec.Hostname, &config)
 
 	if err != nil {
 		result.Error = err
@@ -174,9 +173,12 @@ func (exec *HostSession) GenerateConfig() ssh.ClientConfig {
 	config := ssh.ClientConfig{
 		User: exec.Username,
 		Auth: auths,
+		HostKeyCallback: func(hostname string, remote net.Addr, key ssh.PublicKey) error {
+			return nil
+		},
 	}
 
-	config.Ciphers = []string{"aes128-cbc", "3des-cbc"}
+	//config.Ciphers = []string{"aes128-cbc", "3des-cbc"}
 
 	return config
 }
@@ -184,8 +186,8 @@ func (exec *HostSession) GenerateConfig() ssh.ClientConfig {
 func readKey(filename string) (ssh.Signer, error) {
 	f, _ := os.Open(filename)
 
-	bytes, _ := ioutil.ReadAll(f)
-	return generateKey(bytes)
+	bytesStream, _ := ioutil.ReadAll(f)
+	return generateKey(bytesStream)
 }
 
 func generateKey(keyData []byte) (ssh.Signer, error) {

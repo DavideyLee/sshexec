@@ -1,13 +1,13 @@
 package sshexec
 
 import (
-	"time"
-	"io/ioutil"
+	"errors"
+	"github.com/linclin/grpool"
 	"golang.org/x/crypto/ssh"
+	"io/ioutil"
 	"log"
 	"os"
-	"github.com/linclin/grpool"
-	"errors"
+	"time"
 )
 
 //
@@ -37,7 +37,7 @@ func GetAuthPassword(password string) []ssh.AuthMethod {
 }
 
 func GetAuthKeys(keys []string) []ssh.AuthMethod {
-	methods := []ssh.AuthMethod{}
+	var methods []ssh.AuthMethod
 	for _, keyname := range keys {
 		pkey := PublicKeyFile(keyname)
 		if pkey != nil {
@@ -46,15 +46,15 @@ func GetAuthKeys(keys []string) []ssh.AuthMethod {
 	}
 	return methods
 }
-func (s *SSHExecAgent) SshHostByKey(hosts []string, port int, user string, cmd string) ([]ExecResult, error) {
-	if (len(hosts) == 0) {
+func (s *SSHExecAgent) SshHostByKey(hosts []string, user string, cmd string) ([]ExecResult, error) {
+	if len(hosts) == 0 {
 		log.Println("no hosts")
 		return nil, errors.New("no hosts")
 	}
-	if (s.Worker == 0) {
+	if s.Worker == 0 {
 		s.Worker = 40
 	}
-	if (s.TimeOut == 0) {
+	if s.TimeOut == 0 {
 		s.TimeOut = 3600 * time.Second
 	}
 	keys := []string{
@@ -69,7 +69,7 @@ func (s *SSHExecAgent) SshHostByKey(hosts []string, port int, user string, cmd s
 	pool := grpool.NewPool(s.Worker, len(hosts), s.TimeOut)
 	defer pool.Release()
 	pool.WaitCount(len(hosts))
-	for i, _ := range hosts {
+	for i := range hosts {
 		count := i
 		pool.JobQueue <- grpool.Job{
 			Jobid: count,
@@ -78,7 +78,6 @@ func (s *SSHExecAgent) SshHostByKey(hosts []string, port int, user string, cmd s
 					Username: user,
 					Password: "",
 					Hostname: hosts[count],
-					Port:     port,
 					Auths:  authKeys,
 				}
 				r := session.Exec(count, cmd, session.GenerateConfig())
@@ -92,7 +91,7 @@ func (s *SSHExecAgent) SshHostByKey(hosts []string, port int, user string, cmd s
 	errorText := ""
 	for res := range pool.Jobresult {
 		jobId, _ := res.Jobid.(int)
-		if (res.Timedout) {
+		if res.Timedout {
 			returnResult[jobId].Id = jobId
 			returnResult[jobId].Host = hosts[jobId]
 			returnResult[jobId].Command = cmd
@@ -101,12 +100,12 @@ func (s *SSHExecAgent) SshHostByKey(hosts []string, port int, user string, cmd s
 		} else {
 			execResult, _ := res.Result.(ExecResult)
 			returnResult[jobId] = execResult
-			if (execResult.Error != nil) {
+			if execResult.Error != nil {
 				errorText += "the host " + execResult.Host + " commond  exec error.\n" + "rsult info :" + execResult.Result + ".\nerror info :" + execResult.Error.Error()
 			}
 		}
 	}
-	if (errorText != "") {
+	if errorText != "" {
 		return returnResult, errors.New(errorText)
 
 	} else {
@@ -115,15 +114,15 @@ func (s *SSHExecAgent) SshHostByKey(hosts []string, port int, user string, cmd s
 
 }
 
-func (s *SSHExecAgent) SftpHostByKey(hosts []string, port int, user string, localFilePath  string, remoteFilePath string) ([]ExecResult, error) {
-	if (len(hosts) == 0) {
+func (s *SSHExecAgent) SftpHostByKey(hosts []string, user string, localFilePath  string, remoteFilePath string) ([]ExecResult, error) {
+	if len(hosts) == 0 {
 		log.Println("no hosts")
 		return nil, errors.New("no hosts")
 	}
-	if (s.Worker == 0) {
+	if s.Worker == 0 {
 		s.Worker = 40
 	}
-	if (s.TimeOut == 0) {
+	if s.TimeOut == 0 {
 		s.TimeOut = 3600 * time.Second
 	}
 	keys := []string{
@@ -138,7 +137,7 @@ func (s *SSHExecAgent) SftpHostByKey(hosts []string, port int, user string, loca
 	pool := grpool.NewPool(s.Worker, len(hosts), s.TimeOut)
 	defer pool.Release()
 	pool.WaitCount(len(hosts))
-	for i, _ := range hosts {
+	for i := range hosts {
 		count := i
 		pool.JobQueue <- grpool.Job{
 			Jobid: count,
@@ -147,7 +146,6 @@ func (s *SSHExecAgent) SftpHostByKey(hosts []string, port int, user string, loca
 					Username: user,
 					Password: "",
 					Hostname: hosts[count],
-					Port:     port,
 					Auths:  authKeys,
 				}
 				r := session.Transfer(count, localFilePath, remoteFilePath, session.GenerateConfig())
@@ -161,7 +159,7 @@ func (s *SSHExecAgent) SftpHostByKey(hosts []string, port int, user string, loca
 	errorText := ""
 	for res := range pool.Jobresult {
 		jobId, _ := res.Jobid.(int)
-		if (res.Timedout) {
+		if res.Timedout {
 			returnResult[jobId].Id = jobId
 			returnResult[jobId].Host = hosts[jobId]
 			returnResult[jobId].LocalFilePath = localFilePath
@@ -171,12 +169,12 @@ func (s *SSHExecAgent) SftpHostByKey(hosts []string, port int, user string, loca
 		} else {
 			execResult, _ := res.Result.(ExecResult)
 			returnResult[jobId] = execResult
-			if (execResult.Error != nil) {
+			if execResult.Error != nil {
 				errorText += "the host " + execResult.Host + " commond  exec error.\n" + "rsult info :" + execResult.Result + ".\nerror info :" + execResult.Error.Error()
 			}
 		}
 	}
-	if (errorText != "") {
+	if errorText != "" {
 		return returnResult, errors.New(errorText)
 
 	} else {
