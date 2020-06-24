@@ -7,6 +7,7 @@ import (
 	"io/ioutil"
 	"log"
 	"os"
+	"strings"
 	"time"
 )
 
@@ -46,6 +47,8 @@ func GetAuthKeys(keys []string) []ssh.AuthMethod {
 	}
 	return methods
 }
+
+ //hosts fromat:["ip:port,password",]
 func (s *SSHExecAgent) SshHostByKey(hosts []string, user string, cmd string) ([]ExecResult, error) {
 	if len(hosts) == 0 {
 		log.Println("no hosts")
@@ -76,8 +79,8 @@ func (s *SSHExecAgent) SshHostByKey(hosts []string, user string, cmd string) ([]
 			Jobfunc: func() (interface{}, error) {
 				session := &HostSession{
 					Username: user,
-					Password: "",
-					Hostname: hosts[count],
+					Password: strings.Split(hosts[count],",")[1],
+					Hostname: strings.Split(hosts[count],",")[0],
 					Auths:  authKeys,
 				}
 				r := session.Exec(count, cmd, session.GenerateConfig())
@@ -114,6 +117,7 @@ func (s *SSHExecAgent) SshHostByKey(hosts []string, user string, cmd string) ([]
 
 }
 
+//hosts fromat:["ip:port,password",]
 func (s *SSHExecAgent) SftpHostByKey(hosts []string, user string, localFilePath  string, remoteFilePath string) ([]ExecResult, error) {
 	if len(hosts) == 0 {
 		log.Println("no hosts")
@@ -144,8 +148,8 @@ func (s *SSHExecAgent) SftpHostByKey(hosts []string, user string, localFilePath 
 			Jobfunc: func() (interface{}, error) {
 				session := &HostSession{
 					Username: user,
-					Password: "",
-					Hostname: hosts[count],
+					Password: strings.Split(hosts[count],",")[1],
+					Hostname: strings.Split(hosts[count],",")[0],
 					Auths:  authKeys,
 				}
 				r := session.Transfer(count, localFilePath, remoteFilePath, session.GenerateConfig())
